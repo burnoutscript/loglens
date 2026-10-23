@@ -1,26 +1,21 @@
 # loglens
 
-**Análise de logs de servidor com detecção de ataques e resumo executivo por IA.**
+Análise de logs de servidor com detecção de ataques e resumo executivo por IA.
 
-Lê `access.log` do nginx e `auth.log` do sshd, aplica seis regras de detecção e devolve um
-relatório que diz o que aconteceu, qual a gravidade e o que fazer a respeito.
+Lê o `access.log` do nginx e o `auth.log` do sshd, aplica seis regras de detecção e devolve um
+relatório com o que aconteceu, a gravidade e o que fazer.
 
 [![CI](https://github.com/Kryip/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/Kryip/loglens/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Dependências](https://img.shields.io/badge/dependências-zero-success)
 ![Licença](https://img.shields.io/badge/licença-MIT-lightgrey)
 
----
+## Por que fiz isso
 
-## Por que existe
-
-Servidor exposto na internet recebe varredura automatizada desde o primeiro minuto. O log
-registra tudo, mas ninguém lê 200 mil linhas por dia. As ferramentas que resolvem isso de
-verdade (SIEM completo) custam caro e pedem infraestrutura própria.
-
-O `loglens` ocupa o meio-termo: um comando, um arquivo de log, um relatório legível.
-
----
+Um servidor exposto na internet começa a receber varredura automatizada no primeiro minuto. O
+log registra tudo, mas ninguém lê 200 mil linhas por dia, e um SIEM completo custa caro e pede
+infraestrutura própria. O loglens fica no meio: um comando, um arquivo de log, um relatório
+que dá para ler.
 
 ## Instalação
 
@@ -30,10 +25,7 @@ cd loglens
 pip install -e .
 ```
 
-Requer Python 3.10 ou superior. **Nenhuma dependência externa** — a análise inteira roda
-sobre a biblioteca padrão.
-
----
+Python 3.10+. A análise roda inteira sobre a biblioteca padrão, sem dependência externa.
 
 ## Uso
 
@@ -58,7 +50,7 @@ export LOGLENS_API_KEY="sua-chave"
 loglens /var/log/auth.log --ai
 ```
 
-### Exemplo de saída
+Exemplo de saída:
 
 ```
   loglens — relatório de análise
@@ -83,64 +75,54 @@ loglens /var/log/auth.log --ai
   admin, deploy, oracle, postgres, root.
 ```
 
-Reproduza com os logs de exemplo do repositório:
+Para reproduzir com os logs de exemplo do repositório:
 
 ```bash
 loglens samples/auth.log
 loglens samples/nginx_access.log
 ```
 
----
-
 ## Regras de detecção
 
 | ID | Regra | Severidade | O que procura |
 |---|---|---|---|
 | LL001 | Força bruta | Alta | Falhas de autenticação do mesmo IP concentradas em uma janela |
-| LL002 | Login após falhas | **Crítica** | Autenticação aceita logo depois de uma rajada de falhas |
+| LL002 | Login após falhas | Crítica | Autenticação aceita logo depois de uma rajada de falhas |
 | LL003 | Caminho sensível | Alta / Crítica | Requisições a `.env`, `.git`, `/admin`; crítica se o servidor respondeu 2xx |
 | LL004 | Ferramenta de varredura | Média | User-Agent de sqlmap, nikto, gobuster e similares |
 | LL005 | Enumeração | Média | Volume de 404 para caminhos distintos |
 | LL006 | Volume elevado | Baixa | IP muito acima da média de requisições |
 
-### Janela deslizante, não contagem total
+### Por que a força bruta usa janela deslizante
 
-A regra de força bruta é o exemplo de por que o detalhe importa. Contar o total de falhas por
-IP gera falso positivo: cinquenta falhas espalhadas por uma semana é alguém esquecendo a
-senha. O que caracteriza ataque é a **concentração** — seis falhas em dois minutos.
+Contar o total de falhas por IP gera falso positivo. Cinquenta falhas espalhadas por uma semana
+é alguém esquecendo a senha; seis falhas em dois minutos é ataque. Por isso a LL001 só conta as
+falhas dentro de um intervalo configurável (`--window`, padrão de 10 minutos).
 
-Por isso a `LL001` usa janela deslizante: a contagem considera apenas as falhas dentro de um
-intervalo configurável (`--window`, padrão de 10 minutos).
+### A LL002
 
-### A regra que importa de verdade
+Força bruta bloqueada acontece todo dia e quase sempre é ruído. Força bruta que termina em login
+aceito quer dizer que alguém entrou no servidor. A LL002 separa um caso do outro, e foi por causa
+dela que eu escrevi a ferramenta: é a diferença entre reagir no mesmo dia e descobrir semanas
+depois.
 
-A `LL002` é a razão da ferramenta existir. Força bruta bloqueada é ruído cotidiano. Força
-bruta **bem-sucedida** é incidente: alguém está dentro do servidor. Separar as duas coisas é
-a diferença entre reagir hoje e descobrir daqui a três semanas.
+## A parte de IA
 
----
+Com `--ai`, os achados viram um resumo executivo em linguagem simples. Três decisões por trás
+disso.
 
-## A camada de IA
+O log cru nunca sai da máquina. Só vão os achados já normalizados, com os IPs mascarados
+(`203.0.113.47` vira `203.0.113.x`). Log de produção carrega token de sessão, e-mail de usuário
+e caminho interno, e mandar isso para a API de um terceiro seria um vazamento.
 
-Com `--ai`, os achados viram um resumo executivo em linguagem acessível. Três decisões de
-projeto por trás disso:
+Não uso SDK. A chamada é feita com `urllib` da biblioteca padrão, o que mantém o projeto sem
+dependências e deixa a troca de provedor a uma variável de ambiente de distância:
+`LOGLENS_BASE_URL` aceita qualquer endpoint compatível com a API da OpenAI, inclusive modelos
+locais via Ollama ou LM Studio.
 
-**O log cru nunca é enviado.** Apenas os achados já normalizados saem da máquina, e com os
-IPs mascarados (`203.0.113.47` vira `203.0.113.x`). Log de produção carrega token de sessão,
-e-mail de usuário e caminho interno — mandar isso para uma API de terceiro é vazamento com
-outro nome.
-
-**Sem SDK.** A chamada usa `urllib` da biblioteca padrão. Mantém o projeto com zero
-dependências e deixa a troca de provedor a uma variável de ambiente de distância
-(`LOGLENS_BASE_URL` aceita qualquer endpoint compatível com a API da OpenAI, incluindo
-modelos locais via Ollama ou LM Studio).
-
-**Degrada em silêncio.** Sem chave, sem internet ou com a API fora do ar, a ferramenta avisa
-e segue entregando o relatório completo. A IA explica os achados; quem os encontra são as
-regras determinísticas. Produto de segurança que só funciona quando a API responde não é
-produto de segurança.
-
----
+Se a IA falhar (sem chave, sem internet, API fora do ar), a ferramenta avisa e entrega o
+relatório completo do mesmo jeito. Quem encontra os problemas são as regras determinísticas; a
+IA só explica o que elas acharam, então a análise não pode depender de a API responder.
 
 ## Arquitetura
 
@@ -165,10 +147,10 @@ produto de segurança.
    terminal · JSON · Markdown
 ```
 
-O desenho tem um objetivo: **parser e regra não se conhecem**. Toda regra opera sobre
-`LogEvent`, nunca sobre texto bruto. A consequência prática é que suportar um formato novo
-(Apache, Caddy, CloudFront) é escrever um parser e nada mais — as seis regras passam a
-funcionar nele de graça. E escrever uma regra nova não exige tocar em nenhum parser.
+Parser e regra não se conhecem. Toda regra opera sobre `LogEvent`, nunca sobre o texto bruto.
+Na prática, suportar um formato novo (Apache, Caddy, CloudFront) é escrever um parser, e as seis
+regras passam a funcionar nele. Escrever uma regra nova também não exige mexer em parser
+nenhum.
 
 ### Código de saída
 
@@ -178,9 +160,7 @@ funcionar nele de graça. E escrever uma regra nova não exige tocar em nenhum p
 | `1` | Achados encontrados |
 | `2` | Erro (arquivo ausente, formato irreconhecível) |
 
-Permite usar em cron ou CI: `loglens /var/log/auth.log || notificar-equipe`.
-
----
+Isso permite usar em cron ou CI: `loglens /var/log/auth.log || notificar-equipe`.
 
 ## Desenvolvimento
 
@@ -190,19 +170,17 @@ pytest -v        # 43 testes
 ruff check src tests
 ```
 
-Os testes cobrem cada regra nos dois sentidos: o caso que **deve** disparar e o caso parecido
-que **não deve**. Falso positivo em ferramenta de segurança é pior que falso negativo — alerta
-que grita sem motivo é alerta que a equipe aprende a ignorar.
-
----
+Os testes cobrem cada regra nos dois sentidos: o caso que deve disparar e o caso parecido que
+não deve. Em ferramenta de segurança, falso positivo custa mais que falso negativo, porque a
+equipe aprende a ignorar alerta que dispara sem motivo.
 
 ## Limitações conhecidas
 
-- Trabalha sobre arquivo, não sobre fluxo contínuo. Para monitoramento em tempo real, agende via cron.
-- `auth.log` não registra o ano; o parser assume o ano corrente (ajustável no construtor).
-- Correlação entre IPs não é feita: ataque distribuído em muitos endereços passa pelas regras baseadas em origem única.
-- As regras são baseadas em limiar, não em aprendizado de máquina. É proposital: limiar é auditável e explicável, e numa investigação isso vale mais que precisão marginal.
+- Trabalha sobre arquivo, não sobre fluxo contínuo. Para monitorar em tempo real, agende via cron.
+- O `auth.log` não registra o ano, então o parser assume o ano corrente (dá para ajustar no construtor).
+- Não há correlação entre IPs: um ataque distribuído em muitos endereços passa pelas regras que olham uma origem só.
+- As regras usam limiar, não aprendizado de máquina. Fiz assim de propósito: numa investigação, poder auditar e explicar cada alerta vale mais que um ganho pequeno de precisão.
 
 ## Licença
 
-MIT — veja [LICENSE](LICENSE).
+MIT. Veja [LICENSE](LICENSE).
