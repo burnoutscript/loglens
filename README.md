@@ -5,7 +5,7 @@ Análise de logs de servidor com detecção de ataques e resumo executivo por IA
 Lê o `access.log` do nginx e o `auth.log` do sshd, aplica seis regras de detecção e devolve um
 relatório com o que aconteceu, a gravidade e o que fazer.
 
-[![CI](https://github.com/Kryip/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/Kryip/loglens/actions/workflows/ci.yml)
+[![CI](https://github.com/burnoutscript/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/burnoutscript/loglens/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![Dependências](https://img.shields.io/badge/dependências-zero-success)
 ![Licença](https://img.shields.io/badge/licença-MIT-lightgrey)
@@ -20,7 +20,7 @@ que dá para ler.
 ## Instalação
 
 ```bash
-git clone https://github.com/Kryip/loglens.git
+git clone https://github.com/burnoutscript/loglens.git
 cd loglens
 pip install -e .
 ```

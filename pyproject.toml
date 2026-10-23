@@ -26,7 +26,7 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 loglens = "loglens.cli:main"
 
 [project.urls]
-Repository = "https://github.com/Kryip/loglens"
+Repository = "https://github.com/burnoutscript/loglens"
 
 [tool.setuptools.packages.find]
 where = ["src"]
